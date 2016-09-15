@@ -1,0 +1,8 @@
+node_modules
+lib
+.nyc_output
+coverage
+dist
+es
+.vscode
+.idea

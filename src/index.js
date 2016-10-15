@@ -7,13 +7,23 @@ import { createSelector } from 'reselect';
 // the reset method allows to clear the previous value
 // in special use cases eg. unit tests
 export const createMemoSelector = (...args) => {
-    let memo = null;
+    let prevIn, prevOut;
+
     const transFn = args.pop();
-    const transMemoFn = (...newArgs) => (memo = transFn(...newArgs, memo));
+    const transprevFn = (...newIn) => {
+        prevOut = transFn(...newIn, prevOut, ...prevIn);
+        prevIn = newIn;
 
-    const selector = createSelector(...args.concat(transMemoFn));
-    selector.reset = () => { memo = null; };
+        return prevOut;
+    };
 
+    const selector = createSelector(...args.concat(transprevFn));
+    selector.reset = () => {
+        prevOut = null;
+        prevIn = Array.apply(null, Array(args.length)).map(() => null);
+    };
+
+    selector.reset();
     return selector;
 };
 
@@ -69,8 +79,8 @@ const buildResult = (prev, next) => {
         }
 
         if (isObject(prev) && isObject(next)) {
-            return reduce(next, (memo, item, key) => ({
-                ...memo,
+            return reduce(next, (result, item, key) => ({
+                ...result,
                 [key]: processPlainWith(buildResult, prev)(item, key)
             }), {});
         }
@@ -81,9 +91,10 @@ const buildResult = (prev, next) => {
 
 // selector wrapper, which normalizes the transform function's output
 // to minimise reference changes between subsequent outputs
-export const createDiffSelector = (...args) => {
+export const createAutoSelector = (...args) => {
     const transFn = args.pop();
-    const transDiffFn = (...newArgs) => buildResult(newArgs.pop(), transFn(...newArgs));
+    const prevOutIdx = isArray(args[0]) ? 1 : args.length;
+    const transDiffFn = (...newArgs) => buildResult(newArgs[prevOutIdx], transFn(...newArgs));
 
     return createMemoSelector(...args.concat(transDiffFn));
 };
